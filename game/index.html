@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starfall Bastion — a tower defence</title>
+<style>
+  :root {
+    --bg: #0a0e1e; --panel: #10162a; --edge: #232c4d; --text: #dfe6ff; --dim: #8a94b8;
+    --gold: #ffd94d; --lives: #ff5d73; --ok: #5fd68a; --danger: #ff4d5e; --accent: #39d5ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app { width: 1280px; margin: 0 auto; padding: 12px 16px 16px; }
+  header { display: flex; align-items: baseline; gap: 18px; padding: 4px 2px 12px; }
+  header h1 { font-size: 26px; letter-spacing: 0.5px; }
+  header h1 span { color: var(--gold); }
+  header .sub { color: var(--dim); font-size: 13px; }
+  header .spacer { flex: 1; }
+  .stat { font-size: 17px; font-weight: 700; }
+  .stat.low { color: var(--danger); }
+  #gold { color: var(--gold); }
+  #lives { color: var(--lives); }
+  button { background: #1b2340; color: var(--text); border: 1px solid var(--edge); border-radius: 8px; padding: 8px 12px; font-size: 14px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.primary { background: #2a3a6b; border-color: var(--accent); font-weight: 700; }
+  #layout { display: flex; gap: 12px; }
+  #field-wrap { position: relative; flex: 0 0 960px; }
+  canvas { display: block; width: 960px; height: 600px; background: var(--bg); border: 1px solid var(--edge); border-radius: 10px; cursor: crosshair; }
+  aside { flex: 1; display: flex; flex-direction: column; gap: 12px; }
+  .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 12px; }
+  .panel h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 8px; }
+  .panel p { font-size: 13px; line-height: 1.5; color: var(--dim); }
+  #wave-btn { width: 100%; padding: 12px; font-size: 16px; }
+  #wave-preview { margin-top: 8px; font-size: 12px; color: var(--dim); line-height: 1.5; }
+  #tower-bar { display: flex; flex-direction: column; gap: 8px; }
+  .tower-card { display: grid; grid-template-columns: 12px 1fr auto; gap: 2px 8px; text-align: left; padding: 9px 10px; align-items: center; }
+  .tower-card.active { border-color: var(--gold); background: #232a4d; }
+  .tower-dot { width: 12px; height: 12px; border-radius: 50%; grid-row: span 2; }
+  .tower-name { font-weight: 700; font-size: 14px; }
+  .tower-cost { color: var(--gold); font-weight: 700; }
+  .tower-key { grid-column: 3; grid-row: 1; color: var(--dim); font-size: 12px; }
+  .tower-desc { grid-column: 2 / 4; font-size: 12px; color: var(--dim); line-height: 1.35; }
+  #selected .row { display: flex; gap: 8px; margin-top: 10px; }
+  #selected .row button { flex: 1; }
+  .lvl { color: var(--gold); font-size: 12px; }
+  .keys { font-size: 12px; line-height: 1.8; color: var(--dim); }
+  .keys b { color: var(--text); }
+  #best-line { font-size: 12px; color: var(--dim); }
+  .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(6, 9, 20, 0.82); border-radius: 10px; z-index: 5; }
+  .overlay.hidden { display: none; }
+  .card { text-align: center; max-width: 560px; padding: 28px 32px; }
+  .card h2 { font-size: 44px; margin-bottom: 6px; }
+  .card h2 span { color: var(--gold); }
+  .card h2.bad span { color: var(--danger); }
+  .card .tag { color: var(--dim); font-size: 15px; margin-bottom: 18px; line-height: 1.5; }
+  .card .howto { text-align: left; font-size: 14px; line-height: 1.7; color: var(--text); background: var(--panel); border: 1px solid var(--edge); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; }
+  .card .howto b { color: var(--gold); }
+  .card button { font-size: 18px; padding: 12px 28px; }
+  .card .stats { font-size: 16px; margin-bottom: 20px; line-height: 1.6; }
+  .card .best { margin-top: 16px; font-size: 13px; color: var(--dim); }
+  footer { margin-top: 10px; font-size: 12px; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Starfall <span>Bastion</span></h1>
+    <span class="sub">Hold the last starlight against the void.</span>
+    <span class="spacer"></span>
+    <span class="stat" id="gold">$220</span>
+    <span class="stat" id="lives">♥ 20</span>
+    <span class="stat" id="wave">Wave 0/20</span>
+    <span class="stat" id="score">Score 0</span>
+    <span class="stat" id="enemies">—</span>
+    <button id="speed-btn" title="Game speed (F)">1×</button>
+    <button id="pause-btn" title="Pause (P)">⏸</button>
+    <button id="mute-btn" title="Mute (M)">🔊</button>
+  </header>
+  <div id="layout">
+    <div id="field-wrap">
+      <canvas id="field" width="960" height="600"></canvas>
+      <div class="overlay" id="title-screen">
+        <div class="card">
+          <h2>Starfall <span>Bastion</span></h2>
+          <p class="tag">The void is coming for the last starlight. Build towers on the field, stop twenty waves, and keep the core alive.</p>
+          <div class="howto">
+            <b>Build:</b> pick a tower, click an empty tile. Click a tower to upgrade or sell it.<br>
+            <b>Defend:</b> creatures follow the path to the core on the right. Anything that reaches it costs lives.<br>
+            <b>Win:</b> clear wave 20. <b>Lose:</b> the core falls. Gold comes from kills and cleared waves.<br>
+            <b>Keys:</b> 1–5 towers · Space next wave · F speed · P pause · M mute · U upgrade · X sell
+          </div>
+          <button class="primary" id="start-btn">Start defending</button>
+          <p class="best" id="title-best"></p>
+        </div>
+      </div>
+      <div class="overlay hidden" id="pause-screen">
+        <div class="card">
+          <h2>Paused</h2>
+          <p class="tag">The void waits for no one. Except now.</p>
+          <button class="primary" id="resume-btn">Resume</button>
+          <p class="best"><button id="restart-btn">Restart from wave 1</button></p>
+        </div>
+      </div>
+      <div class="overlay hidden" id="victory-screen">
+        <div class="card">
+          <h2>The bastion <span>stands</span></h2>
+          <p class="tag">Twenty waves, and the starlight still burns. The void retreats — for now.</p>
+          <p class="stats" id="victory-stats"></p>
+          <button class="primary" id="victory-again-btn">Play again</button>
+        </div>
+      </div>
+      <div class="overlay hidden" id="defeat-screen">
+        <div class="card">
+          <h2 class="bad">The core <span>has fallen</span></h2>
+          <p class="tag">The void takes the starlight. The bastion can be rebuilt — stronger.</p>
+          <p class="stats" id="defeat-stats"></p>
+          <button class="primary" id="defeat-again-btn">Try again</button>
+        </div>
+      </div>
+    </div>
+    <aside>
+      <div class="panel">
+        <button class="primary" id="wave-btn">Start wave 1</button>
+        <p id="wave-preview"></p>
+      </div>
+      <div class="panel">
+        <h3>Towers</h3>
+        <div id="tower-bar"></div>
+      </div>
+      <div class="panel" id="selected">
+        <h3>Build</h3>
+        <p>Pick a tower on the left, then click an empty tile on the field. Hotkeys 1–5 pick a tower, Space starts the next wave.</p>
+      </div>
+      <div class="panel">
+        <h3>How to play</h3>
+        <p class="keys"><b>Click</b> build or select · <b>Right-click</b> deselect<br><b>1–5</b> towers · <b>Space</b> next wave · <b>F</b> speed · <b>P</b> pause<br><b>M</b> mute · <b>U</b> upgrade · <b>X</b> sell · Bosses every 5th wave</p>
+      </div>
+      <p id="best-line"></p>
+    </aside>
+  </div>
+  <footer>Starfall Bastion — an original tower defence. No network, no accounts, no downloads: the whole game is the files beside this page.</footer>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
